@@ -1,0 +1,19 @@
+name: dart_openai_agent
+description: A high level wrapper around the OpenAI API for agent-style chat with tool calling.
+version: 1.0.0
+repository: https://github.com/rknell/dart-openai-agent
+publish_to: none
+
+environment:
+  sdk: ^3.11.1
+
+# Add regular dependencies here.
+dependencies:
+  openai_dart:
+    git:
+      url: https://github.com/rknell/openai-dart.git
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.6
+  http:
