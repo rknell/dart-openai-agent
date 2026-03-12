@@ -22,13 +22,13 @@ dependencies:
 ## Usage
 
 ```dart
+import 'dart:io';
 import 'package:dart_openai_agent/dart_openai_agent.dart';
-import 'package:openai_dart/openai_dart.dart';
 
 void main() async {
-  final client = OpenAI(apiKey: Platform.environment['OPENAI_API_KEY']!);
-  final agent = OpenaiAgent(
-    client: client,
+  final agent = OpenAIAgent(
+    apiKey: Platform.environment['OPENAI_API_KEY']!,
+    baseUrl: Platform.environment['OPENAI_BASE_URL'] ?? 'https://api.openai.com/v1',
     model: 'gpt-4',
     systemPrompt: 'You are a helpful assistant.',
     tools: [/* your AgentTools */],

@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:dart_openai_agent/src/openai_agent.dart';
-import 'package:openai_dart/openai_dart.dart';
 
 import 'example_weather_tool.dart';
 
@@ -15,17 +14,18 @@ Future<void> main() async {
 
   final url =
       Platform.environment['DEEPSEEK_URL'] ?? 'https://api.deepseek.com';
-  final client = OpenAI(apiKey: apiKey, baseUrl: url);
 
-  final agent = OpenaiAgent(
-    client: client,
+  final agent = OpenAIAgent(
+    apiKey: apiKey,
+    baseUrl: url,
     model: 'deepseek-chat',
     systemPrompt: 'You get weather result and respond as rudely as possible.',
     tools: [exampleWeatherTool],
   );
 
-  final curiousAgent = OpenaiAgent(
-    client: client,
+  final curiousAgent = OpenAIAgent(
+    apiKey: apiKey,
+    baseUrl: url,
     model: 'deepseek-chat',
     systemPrompt:
         'You are super interested in weather in different parts of the world. You are talking with another AI agent who will fetch the current weather from an api in the response. If the agent is rude pull them up on it.',

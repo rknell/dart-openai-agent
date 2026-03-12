@@ -3,18 +3,20 @@ import 'dart:convert';
 import 'package:dart_openai_agent/src/agent_tool.dart';
 import 'package:openai_dart/openai_dart.dart';
 
-class OpenaiAgent {
+class OpenAIAgent {
   final OpenAI client;
   final String model;
   final String systemPrompt;
   final List<AgentTool>? tools;
 
-  OpenaiAgent({
-    required this.client,
+  OpenAIAgent({
+    required String apiKey,
+    required String baseUrl,
     required this.model,
     required this.systemPrompt,
     List<AgentTool>? tools,
-  }) : tools = tools ?? [] {
+  }) : tools = tools ?? [],
+       client = OpenAI(apiKey: apiKey, baseUrl: baseUrl) {
     context.add(ChatMessage(role: 'system', content: systemPrompt));
   }
 
