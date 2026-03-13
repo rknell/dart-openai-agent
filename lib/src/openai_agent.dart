@@ -15,8 +15,13 @@ class OpenAIAgent {
     required this.model,
     required this.systemPrompt,
     List<AgentTool>? tools,
+    HttpLogCallback? onHttpLog,
   }) : tools = tools ?? [],
-       client = OpenAI(apiKey: apiKey, baseUrl: baseUrl) {
+       client = OpenAI(
+         apiKey: apiKey,
+         baseUrl: baseUrl,
+         onHttpLog: onHttpLog,
+       ) {
     context.add(ChatMessage(role: 'system', content: systemPrompt));
   }
 

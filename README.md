@@ -41,6 +41,34 @@ void main() async {
 
 See the `example/` folder for a full workflow with a weather tool.
 
+## HTTP Logging
+
+Enable HTTP request/response logging by passing an `onHttpLog` callback. Logging is silent by default (`onHttpLog: null`).
+
+```dart
+final agent = OpenAIAgent(
+  apiKey: apiKey,
+  baseUrl: baseUrl,
+  model: model,
+  systemPrompt: systemPrompt,
+  onHttpLog: (event) {
+    print('${event.method} ${event.uri} -> ${event.statusCode} (${event.duration?.inMilliseconds}ms)');
+  },
+);
+```
+
+`HttpLogEvent` provides `method`, `uri`, `statusCode`, `duration`, `requestHeaders` (sanitized; `Authorization` is redacted), `requestBody`, `responseHeaders`, and `responseBody`. Forward to your own logger:
+
+```dart
+import 'dart:developer' as developer;
+
+final _log = developer.log;
+final agent = OpenAIAgent(
+  // ...
+  onHttpLog: (e) => _log('HTTP ${e.method} ${e.uri} ${e.statusCode}'),
+);
+```
+
 ## License
 
 MIT License – see [LICENSE](LICENSE). Provided without warranty.
