@@ -1,31 +1,76 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:dart_openai_agent/src/agent_tool.dart';
+import 'package:dart_openai_agent/src/models/context_message_add_event.dart';
+import 'package:dart_openai_agent/src/models/no_message_content_error.dart';
+import 'package:dart_openai_agent/src/models/tool_call_response.dart';
+import 'package:dart_openai_agent/src/models/tool_not_found_error.dart';
 import 'package:openai_dart/openai_dart.dart';
 
 class OpenAIAgent {
+  final String name;
   final OpenAI client;
   final String model;
   final String systemPrompt;
   final List<AgentTool>? tools;
 
+  final StreamController<ContextMessageAddedEvent> _contextController =
+      StreamController<ContextMessageAddedEvent>.broadcast();
+
+  final Set<void Function(ContextMessageAddedEvent)> _contextListeners = {};
+
   OpenAIAgent({
     required String apiKey,
     required String baseUrl,
+    String? name,
     required this.model,
     required this.systemPrompt,
     List<AgentTool>? tools,
     HttpLogCallback? onHttpLog,
-  }) : tools = tools ?? [],
-       client = OpenAI(
-         apiKey: apiKey,
-         baseUrl: baseUrl,
-         onHttpLog: onHttpLog,
-       ) {
-    context.add(ChatMessage(role: 'system', content: systemPrompt));
+  }) : name = name ?? _generateDefaultName(),
+       tools = tools ?? [],
+       client = OpenAI(apiKey: apiKey, baseUrl: baseUrl, onHttpLog: onHttpLog) {
+    final message = ChatMessage(role: 'system', content: systemPrompt);
+    context.add(message);
+    _emitContextEvent(message, ContextMessageSource.systemInit);
   }
 
   List<ChatMessage> context = [];
+
+  Stream<ContextMessageAddedEvent> get onContextMessageAdded =>
+      _contextController.stream;
+
+  void addContextListener(
+    void Function(ContextMessageAddedEvent event) listener,
+  ) {
+    _contextListeners.add(listener);
+  }
+
+  void removeContextListener(
+    void Function(ContextMessageAddedEvent event) listener,
+  ) {
+    _contextListeners.remove(listener);
+  }
+
+  void dispose() {
+    _contextListeners.clear();
+    _contextController.close();
+  }
+
+  void _emitContextEvent(ChatMessage message, ContextMessageSource source) {
+    final event = ContextMessageAddedEvent(
+      agentName: name,
+      message: message,
+      index: context.length - 1,
+      source: source,
+    );
+    _contextController.add(event);
+    for (final listener in _contextListeners) {
+      listener(event);
+    }
+  }
 
   Future<String> _sendContext({bool isJson = false}) async {
     final response = await client.chat.completions.create(
@@ -37,10 +82,12 @@ class OpenAIAgent {
       ),
     );
 
-    context.add(response.choices[0].message);
-    if (response.choices[0].message.toolCalls != null) {
-      for (Map<String, dynamic> toolCall
-          in response.choices[0].message.toolCalls!) {
+    final assistantMessage = response.choices[0].message;
+    context.add(assistantMessage);
+    _emitContextEvent(assistantMessage, ContextMessageSource.assistantReply);
+
+    if (assistantMessage.toolCalls != null) {
+      for (Map<String, dynamic> toolCall in assistantMessage.toolCalls!) {
         var toolCallResponse = ToolCallResponse.fromJson(toolCall);
         var selectedTool = tools?.firstWhere(
           (tool) => tool.name == toolCallResponse.functionName,
@@ -49,13 +96,13 @@ class OpenAIAgent {
           throw ToolNotFoundError(toolCall);
         }
 
-        context.add(
-          ChatMessage(
-            role: 'tool',
-            content: await selectedTool.callback(toolCallResponse.arguments),
-            toolCallId: toolCallResponse.toolCallId,
-          ),
+        final toolMessage = ChatMessage(
+          role: 'tool',
+          content: await selectedTool.callback(toolCallResponse.arguments),
+          toolCallId: toolCallResponse.toolCallId,
         );
+        context.add(toolMessage);
+        _emitContextEvent(toolMessage, ContextMessageSource.toolResult);
       }
       return _sendContext(isJson: isJson);
     } else {
@@ -67,7 +114,9 @@ class OpenAIAgent {
   }
 
   Future<String> chat({required String message, bool isJson = false}) async {
-    context.add(ChatMessage(role: 'user', content: message));
+    final userMessage = ChatMessage(role: 'user', content: message);
+    context.add(userMessage);
+    _emitContextEvent(userMessage, ContextMessageSource.userInput);
     return _sendContext(isJson: isJson);
   }
 
@@ -87,45 +136,13 @@ class OpenAIAgent {
   }
 }
 
-class NoMessageContentError extends Error {
-  final ChatCompletionResponse response;
-  NoMessageContentError(this.response);
-  @override
-  String toString() => 'NoMessageContentError: $response';
-}
-
-class ToolNotFoundError extends Error {
-  final Map<String, dynamic> toolCall;
-  ToolNotFoundError(this.toolCall);
-  @override
-  String toString() => 'ToolNotFoundError: ${jsonEncode(toolCall)}';
-}
-
-class ToolCallResponse {
-  final String toolCallId;
-  final String functionName;
-  final Map<String, dynamic> arguments;
-
-  ToolCallResponse({
-    required this.toolCallId,
-    required this.functionName,
-    required this.arguments,
-  });
-
-  factory ToolCallResponse.fromJson(Map<String, dynamic> json) {
-    return ToolCallResponse(
-      toolCallId: json['id'] as String,
-      functionName: json["function"]['name'] as String,
-      arguments:
-          jsonDecode(json["function"]['arguments']) as Map<String, dynamic>,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'toolCallId': toolCallId,
-      'functionName': functionName,
-      'arguments': arguments,
-    };
-  }
+String _generateDefaultName() {
+  const prefix = 'Agent-';
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  final rand = Random();
+  final code = List.generate(
+    4,
+    (_) => chars[rand.nextInt(chars.length)],
+  ).join();
+  return '$prefix$code';
 }
